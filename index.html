@@ -59,12 +59,11 @@ h1{font:800 2rem/1 var(--display);margin:0;letter-spacing:-.02em}
 .status{font:400 1.4rem/1.25 var(--display);margin:0;text-wrap:balance;min-height:2.5em}
 .status b{font-weight:700;color:var(--pc)}
 .market{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
-.mk{background:none;border:0;padding:6px 0 4px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:5px;font-size:.95rem;font-weight:500}
+.mk{background:none;border:0;padding:6px 0;cursor:pointer;display:flex;justify-content:center}
 .mk svg{width:62px;height:68px;display:block;transition:transform .15s ease}
-.mk span{text-decoration:underline 3px transparent;text-underline-offset:5px}
 .mk:hover:not(:disabled) svg{transform:translateY(-2px)}
 .mk.sel svg{transform:translateY(-5px)}
-.mk.sel span{font-weight:800;color:var(--pc);text-decoration-color:var(--pc)}
+.mk.sel .hexline{stroke:var(--pc);stroke-width:3.5}
 .mk:disabled{cursor:default;opacity:.45}
 .empty{grid-column:1/-1;color:var(--muted)}
 .preview{font-size:.95rem;display:flex;flex-direction:column;gap:2px}
@@ -110,7 +109,9 @@ h1{font:800 2rem/1 var(--display);margin:0;letter-spacing:-.02em}
 .fig{background:var(--ground);border-radius:3px;height:180px;overflow:hidden}
 .fig svg{width:100%;height:100%;display:block}
 .rnav{display:flex;align-items:center;gap:8px}
-.rnav .step{flex:1;color:var(--muted);font-variant-numeric:tabular-nums}
+.rnav .step{flex:1;display:flex;gap:5px;align-items:center}
+.pip{width:10px;height:11px;display:block;fill:var(--line)}
+.pip.on{fill:var(--ink)}
 .rnav .btn{flex:0 0 auto;min-width:90px}
 .plist{display:flex;flex-direction:column;gap:3px}
 .plist div{display:flex;justify-content:space-between;gap:8px}
@@ -125,6 +126,10 @@ h1{font:800 2rem/1 var(--display);margin:0;letter-spacing:-.02em}
   .pl .sc{font-size:1.8rem}
   .status{min-height:0}
 }
+@media (max-width:420px){
+  .card{--bleed:20px;padding:20px}
+  .rnav .btn{min-width:0;padding-inline:16px}
+}
 @media (prefers-reduced-motion: reduce){*{transition:none!important}}
 </style>
 </head><body>
@@ -135,10 +140,7 @@ h1{font:800 2rem/1 var(--display);margin:0;letter-spacing:-.02em}
     <section class="players" id="scores" aria-label="Scores"></section>
     <section class="turn">
       <p class="status" id="status" aria-live="polite"></p>
-      <div>
-        <h2 class="sec">Market</h2>
-        <div class="market" id="market"></div>
-      </div>
+      <div class="market" id="market" aria-label="Tiles to choose from"></div>
       <div class="preview" id="preview"></div>
       <div class="btns" id="actions"></div>
     </section>
@@ -170,7 +172,7 @@ h1{font:800 2rem/1 var(--display);margin:0;letter-spacing:-.02em}
     <h2 id="rtitle"></h2>
     <p id="rtext"></p>
     <div class="rnav">
-      <span class="step" id="rstep"></span>
+      <span class="step" id="rstep" role="img"></span>
       <button class="btn" type="button" data-act="rprev" id="rprev">Back</button>
       <button class="btn primary" type="button" data-act="rnext" id="rnext">Next</button>
     </div>
@@ -189,7 +191,6 @@ const K=(q,r)=>q+','+r;
 const SZ=34, R3=Math.sqrt(3);
 const $=id=>document.getElementById(id);
 const svg=$('svg');
-const touch=matchMedia('(hover: none)').matches;
 
 let G=null, hist=[], hover=null, pending=null;
 
@@ -203,7 +204,6 @@ function newGame(names,friendly){
 const clone=o=>JSON.parse(JSON.stringify(o));
 const pc=p=>p===0?'var(--p0)':'var(--p1)';
 const fmt=n=>{const w=Math.floor(n);return n%1?(w?w:'')+'½':String(w);};
-const fd=d=>d>0?'+'+fmt(d):d<0?'−'+fmt(-d):'0';
 const f1=n=>n.toFixed(1);
 const plural=(n,w)=>`${fmt(n)} ${w}${n===1?'':'s'}`;
 
@@ -235,11 +235,6 @@ function legal(key,q,r,t){
   for(const [dq,dr] of DIRS){const n=K(q+dq,r+dr);const tl=G.tiles[n];if(tl&&tl.t===t){touched.add(list.findIndex(p=>p.keys.includes(n)));}}
   if(touched.size<2)return true;
   return ![...touched].some(i=>list[i].f[0]+list[i].f[1]>0);
-}
-function simulate(key,q,r,t,flag){
-  const tiles=Object.assign({},G.tiles);tiles[key]={q,r,t,flag:flag?G.turn:null};
-  const before=totals(patches(G.tiles)),after=totals(patches(tiles));
-  return [after[0]-before[0],after[1]-before[1]];
 }
 
 /* ---------- actions ---------- */
@@ -334,9 +329,8 @@ function patchText(p){
   if(p.pts[0]&&p.pts[1])who=`Split, ${fmt(p.pts[0])} each`;
   else if(p.pts[0]||p.pts[1]){const w=p.pts[0]?0:1;who=`<span style="color:${pc(w)}">${esc(nm[w])}</span>, ${p.size}`;}
   const fl=[0,1].filter(i=>p.f[i]).map(i=>`${esc(nm[i])} ${p.f[i]}`).join(' · ');
-  return `<div class="row"><strong>${TYPES[p.t]} patch</strong><span>${plural(p.size,'tile')}</span></div>${fl?`<div class="row"><span>Flags</span><span>${fl}</span></div>`:''}<div class="row"><span>Points to</span><span>${who}</span></div>`;
+  return `<div class="row"><strong>Patch</strong><span>${plural(p.size,'tile')}</span></div>${fl?`<div class="row"><span>Flags</span><span>${fl}</span></div>`:''}<div class="row"><span>Points to</span><span>${who}</span></div>`;
 }
-const deltas=d=>`${esc(G.names[G.turn])} ${fd(d[G.turn])} · ${esc(G.names[1-G.turn])} ${fd(d[1-G.turn])}`;
 
 function renderSide(){
   const me=G.turn,nm=G.names,over=G.phase==='over',tot=totals(patches(G.tiles));
@@ -347,29 +341,22 @@ function renderSide(){
   const who=`<b>${esc(nm[me])}</b>`;
   let st='';
   if(G.phase==='pick')st=`${who}, choose a tile.`;
-  else if(G.phase==='place')st=`${who}, place the ${TYPES[G.market[G.sel]].toLowerCase()}.`;
+  else if(G.phase==='place')st=`${who}, place your tile.`;
   else if(G.phase==='flag')st=`${who}, plant a flag on this patch?`;
   else if(tot[0]===tot[1])st=`A dead heat at ${fmt(tot[0])} each.`;
   else{const w=tot[0]>tot[1]?0:1;st=`<b style="--pc:${pc(w)}">${esc(nm[w])}</b> wins, ${fmt(tot[w])} to ${fmt(tot[1-w])}.`;}
   $('status').innerHTML=st;
 
-  $('market').innerHTML=G.market.length?G.market.map((t,i)=>`<button type="button" class="mk${G.sel===i?' sel':''}" data-i="${i}" ${G.phase==='flag'||over?'disabled':''} aria-pressed="${G.sel===i}">${miniHex(t)}<span>${TYPES[t]}</span></button>`).join(''):'<div class="empty">The market is empty.</div>';
+  $('market').innerHTML=G.market.length?G.market.map((t,i)=>`<button type="button" class="mk${G.sel===i?' sel':''}" data-i="${i}" ${G.phase==='flag'||over?'disabled':''} aria-pressed="${G.sel===i}" aria-label="${TYPES[t]}">${miniHex(t)}</button>`).join(''):'<div class="empty">No tiles left.</div>';
 
   let pv='',act='';
   if(G.phase==='place'){
     const k=pending||hover,cand=candidates();
     if(k&&cand[k]){const {q,r}=cand[k],t=G.market[G.sel];
       if(!legal(k,q,r,t))pv=`<div class="hint">Friendly rules: this would merge a claimed patch with another.</div>`;
-      else{pv=`<div class="row"><span>Placed here</span><span>${deltas(simulate(k,q,r,t,false))}</span></div>`;
-        if(G.flags[me]>0)pv+=`<div class="row"><span>With a flag</span><span>${deltas(simulate(k,q,r,t,true))}</span></div>`;
-        if(pending)act=`<button type="button" class="btn primary" data-act="place">Place here</button>`;}
+      else if(pending)act=`<button type="button" class="btn primary" data-act="place">Place here</button>`;
     }else if(hover&&G.tiles[hover])pv=patchText(patchOf(G.tiles,hover));
-    else pv=`<div class="hint">${touch?'Tap':'Point at'} an open space to see what it scores.</div>`;
   }else if(G.phase==='flag'){
-    const p=patchOf(G.tiles,G.last);
-    const tiles=Object.assign({},G.tiles);tiles[G.last]=Object.assign({},tiles[G.last],{flag:me});
-    const a=totals(patches(tiles)),b=totals(patches(G.tiles));
-    pv=`<div class="row"><strong>${TYPES[p.t]} patch</strong><span>${plural(p.size,'tile')}</span></div><div class="row"><span>With your flag</span><span>${deltas([a[0]-b[0],a[1]-b[1]])}</span></div>`;
     act=`<button type="button" class="btn primary" data-act="plant">Plant flag</button><button type="button" class="btn" data-act="skip">Don't plant</button>`;
   }else if(G.phase==='pick'){
     if(hover&&G.tiles[hover])pv=patchText(patchOf(G.tiles,hover));
@@ -413,7 +400,7 @@ function fig(list,opt={}){
 const FOREST=[[0,0],[1,0],[0,1]];
 const PATCHES=[[0,0,'forest'],[1,0,'forest'],[0,1,'forest'],[1,-1,'field'],[2,-1,'field'],[-1,1,'lake'],[1,1,'mountain']];
 const RULES=[
-  {h:'Lay a tile',p:'On your turn, take one of the three tiles from the market and place it so it touches the board. You each get 15 turns.',
+  {h:'Lay a tile',p:'On your turn, take one of the three tiles on offer and place it so it touches the board. You each get 15 turns.',
    fig:()=>fig([[0,0,'field'],[1,0,'lake'],[0,1,'forest'],[1,-1,'field']],{ghost:[-1,1,'forest'],spots:[[-1,0],[0,-1],[2,-1],[2,0],[1,1]]})},
   {h:'Matching land forms a patch',p:'Touching tiles of the same land join into one patch, however far it spreads. Point at any tile during a game to outline its patch.',
    fig:()=>fig(PATCHES,{outline:FOREST})},
@@ -422,14 +409,15 @@ const RULES=[
   {h:'Most flags takes the patch',p:'At the end, each patch scores a point per tile for whoever has the most flags in it. Ties split the points. Patches can merge, so no lead is ever quite safe.',
    fig:()=>fig([[0,0,'field',0],[1,0,'field'],[2,0,'field',0],[0,1,'field'],[1,1,'field',1],[-1,1,'lake'],[2,1,'mountain'],[1,-1,'forest']],{outline:[[0,0],[1,0],[2,0],[0,1],[1,1]],color:'var(--p0)'})},
 ];
-let rstep=0,rulesThen=null,rulesDone='Done';
-function openRules(then,done){rstep=0;rulesThen=then||null;rulesDone=done||'Done';renderRules();$('rulesov').hidden=false;$('rnext').focus();}
+let rstep=0,rulesThen=null;
+function openRules(then){rstep=0;rulesThen=then||null;renderRules();$('rulesov').hidden=false;$('rnext').focus();}
 function renderRules(){
   const s=RULES[rstep];
   $('rfig').innerHTML=s.fig();$('rtitle').textContent=s.h;$('rtext').textContent=s.p;
-  $('rstep').textContent=`${rstep+1} of ${RULES.length}`;
+  $('rstep').innerHTML=RULES.map((_,i)=>`<svg class="pip${i===rstep?' on':''}" viewBox="-10 -11 20 22" aria-hidden="true"><polygon points="${hexPts(0,0,10)}"/></svg>`).join('');
+  $('rstep').setAttribute('aria-label',`Step ${rstep+1} of ${RULES.length}`);
   $('rprev').style.visibility=rstep?'visible':'hidden';
-  $('rnext').textContent=rstep===RULES.length-1?rulesDone:'Next';
+  $('rnext').textContent=rstep===RULES.length-1?'Done':'Next';
 }
 function closeRules(){
   $('rulesov').hidden=true;
@@ -475,7 +463,7 @@ $('undo').addEventListener('click',undo);
 $('rulesbtn').addEventListener('click',()=>openRules());
 $('newbtn').addEventListener('click',()=>openSetup(true));
 $('setupcancel').addEventListener('click',()=>{$('setup').hidden=true;});
-$('setuprules').addEventListener('click',()=>{const c=!$('setupcancel').hidden;$('setup').hidden=true;openRules(()=>openSetup(c),'Back to setup');});
+$('setuprules').addEventListener('click',()=>{const c=!$('setupcancel').hidden;$('setup').hidden=true;openRules(()=>openSetup(c));});
 $('setupform').addEventListener('submit',e=>{e.preventDefault();
   const n=[$('p0name').value.trim()||'Player 1',$('p1name').value.trim()||'Player 2'];
   G=newGame(n,$('friendly').checked);hist=[];hover=null;pending=null;$('setup').hidden=true;$('endov').hidden=true;render();});
@@ -485,7 +473,7 @@ function start(data){
   try{const s=JSON.parse(localStorage.getItem('hedgerow')||'null');if(s&&s.G&&s.G.phase!=='over'&&s.G.placed>0){G=s.G;hist=s.hist||[];render();return;}}catch(e){}
   G=newGame(['Player 1','Player 2'],false);render();
   let seen=false;try{seen=!!localStorage.getItem('hedgerow-rules');}catch(e){}
-  if(seen)openSetup(false);else openRules(()=>openSetup(false),'Set up a game');
+  if(seen)openSetup(false);else openRules(()=>openSetup(false));
 }
 window.claude?.hot?.snapshot?.(()=>({G,hist}));
 window.claude?.hot?.ready?window.claude.hot.ready(start):start(window.claude?.hot?.data??{});
