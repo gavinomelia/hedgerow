@@ -1,0 +1,388 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}</style>
+<title>Hedgerow</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Young+Serif&family=Figtree:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: a countryside table — board on the left like a map spread out, a tidy side ledger of score, market and moves on the right. */
+:root{
+  --bg:#e7eadd; --surface:#f6f7f0; --ink:#232a1f; --muted:#5b6553; --line:#c7cdb9;
+  --p0:#b0502a; --p1:#39508f; --glow:#fff6c9; --spot:#d5dac7;
+  --forest:#557f48; --field:#dcb54c; --lake:#62a0c6; --mountain:#8b909a;
+  --display:"Young Serif", Georgia, "Times New Roman", serif;
+  --body:"Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#151a13; --surface:#1f251b; --ink:#e7ebdd; --muted:#9ba58f; --line:#343c2e;
+  --p0:#e2804f; --p1:#8c9de6; --glow:#5b5530; --spot:#2b3227;
+  --forest:#466f3c; --field:#c29c3b; --lake:#4a87b1; --mountain:#727884; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#151a13; --surface:#1f251b; --ink:#e7ebdd; --muted:#9ba58f; --line:#343c2e;
+  --p0:#e2804f; --p1:#8c9de6; --glow:#5b5530; --spot:#2b3227;
+  --forest:#466f3c; --field:#c29c3b; --lake:#4a87b1; --mountain:#727884; color-scheme:dark}
+
+html,body{height:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.45}
+.wrap{max-width:1180px;margin:0 auto;padding-block:16px 28px;padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));display:flex;flex-direction:column;gap:14px}
+header{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
+h1{font-family:var(--display);font-weight:400;font-size:1.9rem;margin:0;letter-spacing:.01em}
+.turncount{color:var(--muted);font-variant-numeric:tabular-nums;font-size:.9rem}
+.app{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:16px;align-items:start}
+@media (max-width:860px){.app{grid-template-columns:minmax(0,1fr)}}
+.board{background:var(--surface);border:1px solid var(--line);border-radius:14px;min-width:0;overflow:hidden;position:relative}
+.board svg{display:block;width:100%;height:min(72vh,640px);touch-action:manipulation}
+@media (max-width:860px){.board svg{height:min(58vh,520px)}}
+.side{display:flex;flex-direction:column;gap:12px;min-width:0}
+.box{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.label{font-size:.72rem;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:600}
+
+.scores{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.pl{border:2px solid transparent;border-radius:12px;padding:10px 12px;background:var(--bg);display:flex;flex-direction:column;gap:4px;transition:border-color .2s}
+.pl.active{border-color:var(--pc)}
+.pl .nm{font-weight:700;color:var(--pc);display:flex;align-items:center;gap:6px;min-width:0}
+.pl .nm span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pl .sc{font-family:var(--display);font-size:2rem;line-height:1;font-variant-numeric:tabular-nums}
+.pl .fl{display:flex;gap:3px;align-items:center;min-height:16px}
+.pl .fl svg{width:11px;height:16px}
+.pl .fl .used{opacity:.22}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--pc);flex:none}
+
+.status{font-family:var(--display);font-size:1.25rem;line-height:1.25;text-wrap:balance}
+.status b{font-weight:400;color:var(--pc)}
+.tip{color:var(--muted);font-size:.92rem}
+
+.market{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.mk{font:inherit;color:var(--ink);background:var(--bg);border:2px solid var(--line);border-radius:12px;padding:8px 4px 6px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;transition:transform .15s,border-color .15s}
+.mk:hover:not(:disabled){transform:translateY(-2px)}
+.mk.sel{border-color:var(--pc);background:var(--surface);box-shadow:0 0 0 3px color-mix(in srgb,var(--pc) 22%,transparent)}
+.mk:disabled{cursor:default;opacity:.55}
+.mk svg{width:54px;height:58px}
+.mk small{font-weight:600;font-size:.82rem}
+.empty{color:var(--muted);font-size:.9rem;grid-column:1/-1}
+
+.preview{background:var(--bg);border-radius:10px;padding:10px 12px;font-size:.93rem;display:flex;flex-direction:column;gap:4px;min-height:1.4em}
+.preview .row{display:flex;justify-content:space-between;gap:10px;font-variant-numeric:tabular-nums}
+.pos{color:var(--p0)} .neg{color:var(--muted)}
+.btns{display:flex;gap:8px;flex-wrap:wrap}
+button.b{font:inherit;font-weight:600;border-radius:10px;padding:10px 14px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer;flex:1 1 auto}
+button.b.primary{background:var(--pc);border-color:var(--pc);color:#fff}
+button.b:disabled{opacity:.45;cursor:default}
+button:focus-visible,input:focus-visible,summary:focus-visible{outline:3px solid var(--p1);outline-offset:2px}
+.tools{display:flex;gap:8px;flex-wrap:wrap}
+.tools button{flex:1 1 auto;font-size:.88rem;padding:8px 10px;font-weight:500}
+details{font-size:.92rem}
+details summary{cursor:pointer;font-weight:600}
+details ul{margin:.5em 0 0;padding-left:1.1em;display:flex;flex-direction:column;gap:4px}
+
+/* SVG */
+.spot{fill:var(--spot);stroke:var(--line);stroke-width:1.5;stroke-dasharray:4 4;cursor:pointer}
+.spot.ok{fill:var(--glow);stroke:var(--pc);stroke-width:2;animation:breathe 1.8s ease-in-out infinite}
+.spot.bad{opacity:.35;cursor:not-allowed}
+.hexline{fill:none;stroke:rgba(0,0,0,.18);stroke-width:1.2}
+.patchline{fill:none;stroke:var(--ink);stroke-width:3.5}
+.lastline{fill:none;stroke:var(--pc);stroke-width:3;stroke-dasharray:6 4}
+.ghost{opacity:.8;pointer-events:none}
+@keyframes breathe{50%{fill-opacity:.55}}
+@media (prefers-reduced-motion: reduce){.spot.ok{animation:none}.mk{transition:none}}
+
+/* Overlays */
+.ov{position:fixed;inset:0;background:color-mix(in srgb,var(--bg) 70%,transparent);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));z-index:20}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:24px;max-width:440px;width:100%;display:flex;flex-direction:column;gap:14px;box-shadow:0 20px 50px rgba(0,0,0,.18);max-height:100%;overflow:auto}
+.card h2{font-family:var(--display);font-weight:400;font-size:1.7rem;margin:0;text-wrap:balance}
+.card p{margin:0;color:var(--muted)}
+.field{display:flex;flex-direction:column;gap:4px}
+.field input[type=text]{font:inherit;padding:10px 12px;border-radius:10px;border:2px solid var(--line);background:var(--bg);color:var(--ink)}
+.chk{display:flex;gap:10px;align-items:flex-start;font-size:.93rem}
+.chk input{margin-top:3px;width:18px;height:18px;flex:none}
+.final{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.plist{display:flex;flex-direction:column;gap:6px;font-size:.92rem}
+.plist div{display:flex;justify-content:space-between;gap:8px;font-variant-numeric:tabular-nums}
+</style>
+
+</head><body>
+<div class="wrap" id="root">
+  <header>
+    <h1>Hedgerow</h1>
+    <div class="turncount" id="turncount"></div>
+  </header>
+  <div class="app">
+    <div class="board"><svg id="svg" xmlns="http://www.w3.org/2000/svg" aria-label="Game board"></svg></div>
+    <div class="side">
+      <div class="scores" id="scores"></div>
+      <div class="box" id="statusbox">
+        <div class="status" id="status"></div>
+        <div class="tip" id="tip"></div>
+      </div>
+      <div class="box">
+        <div class="label">Market</div>
+        <div class="market" id="market"></div>
+        <div class="preview" id="preview"></div>
+        <div class="btns" id="actions"></div>
+      </div>
+      <div class="tools">
+        <button class="b" id="undo" type="button">Undo</button>
+        <button class="b" id="tipsbtn" type="button">Hide tips</button>
+        <button class="b" id="newbtn" type="button">New game</button>
+      </div>
+      <div class="box">
+        <details id="rules">
+          <summary>How to play</summary>
+          <ul>
+            <li>On your turn, pick one of the three market tiles and place it next to any tile on the board.</li>
+            <li>Then you may plant one of your 6 flags on the tile you just placed. That flag claims the whole connected patch of that land.</li>
+            <li>At the end, every patch is worth 1 point per hex. Whoever has more flags in it gets the points. Ties split them.</li>
+            <li>The game ends after 15 turns each. The scoreboard always shows the score as if the game ended right now.</li>
+            <li>Hover over a tile on the board to see its patch and who leads it.</li>
+          </ul>
+        </details>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="ov" id="setup" hidden>
+  <form class="card" id="setupform">
+    <h2>Two players, one board</h2>
+    <p>Take turns on this computer. Each turn: take a tile, place it, and decide whether to plant a flag.</p>
+    <div class="field"><label class="label" for="p0name" style="color:var(--p0)">First player</label><input type="text" id="p0name" maxlength="14" value="Player 1"></div>
+    <div class="field"><label class="label" for="p1name" style="color:var(--p1)">Second player</label><input type="text" id="p1name" maxlength="14" value="Player 2"></div>
+    <label class="chk"><input type="checkbox" id="friendly"><span><b>Friendly mode.</b> A claimed patch can't be joined to another patch, so nobody can steal it.</span></label>
+    <button class="b primary" type="submit" style="--pc:var(--p0)">Start the game</button>
+  </form>
+</div>
+
+<div class="ov" id="endov" hidden>
+  <div class="card" id="endcard"></div>
+</div>
+
+<script>
+(function(){
+const TYPES={forest:'Forest',field:'Field',lake:'Lake',mountain:'Mountain'};
+const DIRS=[[1,0],[1,-1],[0,-1],[-1,0],[-1,1],[0,1]];
+const K=(q,r)=>q+','+r;
+const SZ=34, R3=Math.sqrt(3);
+const $=id=>document.getElementById(id);
+const svg=$('svg');
+
+let G=null, hist=[], hover=null, pending=null;
+
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+function newGame(names,friendly,tips){
+  const bag=[];[['forest',9],['field',9],['lake',8],['mountain',8]].forEach(([t,n])=>{for(let i=0;i<n;i++)bag.push(t);});
+  shuffle(bag);
+  const tiles={};tiles[K(0,0)]={q:0,r:0,t:bag.pop(),flag:null};
+  return {tiles,bag,market:[bag.pop(),bag.pop(),bag.pop()],turn:0,flags:[6,6],placed:0,total:30,phase:'pick',sel:null,last:null,names,friendly,tips:tips!==false};
+}
+const clone=o=>JSON.parse(JSON.stringify(o));
+const pc=p=>p===0?'var(--p0)':'var(--p1)';
+const fmt=n=>{const w=Math.floor(n);return n%1?(w?w:'')+'½':String(w);};
+const fd=d=>d>0?'+'+fmt(d):d<0?'−'+fmt(-d):'0';
+
+/* ---------- rules ---------- */
+function patches(tiles){
+  const seen={},list=[];
+  for(const k in tiles){
+    if(seen[k])continue;
+    const t=tiles[k].t,keys=[],st=[k];seen[k]=1;
+    while(st.length){const c=st.pop();keys.push(c);const {q,r}=tiles[c];
+      for(const [dq,dr] of DIRS){const n=K(q+dq,r+dr);if(!seen[n]&&tiles[n]&&tiles[n].t===t){seen[n]=1;st.push(n);}}}
+    const f=[0,0];keys.forEach(x=>{const fl=tiles[x].flag;if(fl===0||fl===1)f[fl]++;});
+    let pts=[0,0];const n=keys.length;
+    if(f[0]>f[1])pts=[n,0];else if(f[1]>f[0])pts=[0,n];else if(f[0]>0)pts=[n/2,n/2];
+    list.push({t,keys,f,pts,size:n});
+  }
+  return list;
+}
+const totals=list=>list.reduce((a,p)=>[a[0]+p.pts[0],a[1]+p.pts[1]],[0,0]);
+function patchOf(tiles,key){return patches(tiles).find(p=>p.keys.includes(key));}
+function candidates(){
+  const out={};
+  for(const k in G.tiles){const {q,r}=G.tiles[k];for(const [dq,dr] of DIRS){const n=K(q+dq,r+dr);if(!G.tiles[n])out[n]={q:q+dq,r:r+dr};}}
+  return out;
+}
+function legal(key,q,r,t){
+  if(!G.friendly)return true;
+  const list=patches(G.tiles),touched=new Set();
+  for(const [dq,dr] of DIRS){const n=K(q+dq,r+dr);const tl=G.tiles[n];if(tl&&tl.t===t){touched.add(list.findIndex(p=>p.keys.includes(n)));}}
+  if(touched.size<2)return true;
+  return ![...touched].some(i=>list[i].f[0]+list[i].f[1]>0);
+}
+function simulate(key,q,r,t,flag){
+  const tiles=Object.assign({},G.tiles);tiles[key]={q,r,t,flag:flag?G.turn:null};
+  const before=totals(patches(G.tiles)),after=totals(patches(tiles));
+  return [after[0]-before[0],after[1]-before[1]];
+}
+
+/* ---------- actions ---------- */
+function push(){hist.push(clone(G));if(hist.length>80)hist.shift();}
+function pick(i){if(G.phase!=='pick'&&G.phase!=='place')return;G.sel=i;G.phase='place';pending=null;render();}
+function place(key){
+  const c=candidates()[key];if(!c||G.sel===null)return;
+  const t=G.market[G.sel];if(!legal(key,c.q,c.r,t))return;
+  push();
+  G.tiles[key]={q:c.q,r:c.r,t,flag:null};
+  if(G.bag.length)G.market[G.sel]=G.bag.pop();else G.market.splice(G.sel,1);
+  G.placed++;G.last=key;G.sel=null;pending=null;hover=null;
+  if(G.flags[G.turn]>0)G.phase='flag';else endTurn();
+  render();
+}
+function plant(){if(G.phase!=='flag')return;push();G.tiles[G.last].flag=G.turn;G.flags[G.turn]--;endTurn();render();}
+function skip(){if(G.phase!=='flag')return;push();endTurn();render();}
+function endTurn(){G.turn=1-G.turn;G.phase=(G.placed>=G.total||!G.market.length)?'over':'pick';}
+function undo(){if(!hist.length)return;const tips=G.tips;G=hist.pop();G.tips=tips;pending=null;hover=null;render();}
+
+/* ---------- drawing ---------- */
+function center(q,r){return [SZ*R3*(q+r/2),SZ*1.5*r];}
+function hexPts(cx,cy,s){let p='';for(let i=0;i<6;i++){const a=Math.PI/180*(60*i-30);p+=(cx+s*Math.cos(a)).toFixed(1)+','+(cy+s*Math.sin(a)).toFixed(1)+' ';}return p;}
+function rnd(q,r,i){const x=Math.sin(q*12.9898+r*78.233+i*37.719)*43758.5453;return x-Math.floor(x);}
+function art(t,cx,cy,s,q,r){
+  const k=s/34;let o='';
+  if(t==='forest'){
+    const pos=[[-10,-4],[9,-7],[0,9],[-14,10],[14,8]];
+    pos.forEach(([x,y],i)=>{if(i>2&&rnd(q,r,i)<.5)return;const X=cx+x*k,Y=cy+y*k,h=(13+rnd(q,r,i+5)*4)*k,w=7*k;
+      o+=`<path d="M${X},${Y-h} L${X+w},${Y} L${X-w},${Y}Z" fill="rgba(20,45,20,.55)"/><rect x="${X-1.2*k}" y="${Y}" width="${2.4*k}" height="${3.5*k}" fill="rgba(60,35,15,.6)"/>`;});
+  }else if(t==='field'){
+    for(let i=-2;i<=2;i++){const y=cy+i*7*k;o+=`<path d="M${cx-18*k},${y+5*k} L${cx+18*k},${y-5*k}" stroke="rgba(120,80,10,.38)" stroke-width="${2.2*k}" stroke-linecap="round"/>`;}
+  }else if(t==='lake'){
+    [[-6,-6],[6,3],[-3,12]].forEach(([x,y])=>{const X=cx+x*k,Y=cy+y*k;o+=`<path d="M${X-8*k},${Y} q${4*k},${-4*k} ${8*k},0 t${8*k},0" fill="none" stroke="rgba(255,255,255,.65)" stroke-width="${1.8*k}" stroke-linecap="round"/>`;});
+  }else{
+    const p1=`M${cx-20*k},${cy+12*k} L${cx-5*k},${cy-12*k} L${cx+8*k},${cy+12*k}Z`,p2=`M${cx-2*k},${cy+12*k} L${cx+10*k},${cy-5*k} L${cx+21*k},${cy+12*k}Z`;
+    o+=`<path d="${p1}" fill="rgba(45,48,58,.5)"/><path d="${p2}" fill="rgba(45,48,58,.38)"/><path d="M${cx-5*k},${cy-12*k} L${cx-9*k},${cy-5.5*k} L${cx-1.5*k},${cy-5.5*k}Z" fill="rgba(255,255,255,.85)"/>`;
+  }
+  return o;
+}
+function flagSvg(cx,cy,p){
+  return `<line x1="${cx-3}" y1="${cy+12}" x2="${cx-3}" y2="${cy-17}" stroke="var(--ink)" stroke-width="2" stroke-linecap="round"/><path d="M${cx-3},${cy-17} L${cx+13},${cy-11} L${cx-3},${cy-5}Z" fill="${pc(p)}" stroke="var(--surface)" stroke-width="1.5" stroke-linejoin="round"/>`;
+}
+const tileFill=t=>`var(--${t})`;
+function miniHex(t){return `<svg viewBox="-30 -32 60 64" aria-hidden="true"><polygon points="${hexPts(0,0,29)}" fill="${tileFill(t)}"/>${art(t,0,0,29,3,7)}<polygon points="${hexPts(0,0,29)}" class="hexline"/></svg>`;}
+function flagIcon(p,used){return `<svg viewBox="0 0 11 16" class="${used?'used':''}" aria-hidden="true"><line x1="1.5" y1="1" x2="1.5" y2="15" stroke="var(--ink)" stroke-width="1.6"/><path d="M1.5,1 L10,4.5 L1.5,8Z" fill="${pc(p)}"/></svg>`;}
+
+function renderBoard(){
+  const cand=G.phase==='place'?candidates():{};
+  const keys=[...Object.keys(G.tiles),...Object.keys(candidates())];
+  let x0=1e9,x1=-1e9,y0=1e9,y1=-1e9;
+  keys.forEach(k=>{const [q,r]=k.split(',').map(Number);const [x,y]=center(q,r);x0=Math.min(x0,x);x1=Math.max(x1,x);y0=Math.min(y0,y);y1=Math.max(y1,y);});
+  const pad=SZ*1.4;svg.setAttribute('viewBox',`${x0-pad} ${y0-pad} ${x1-x0+pad*2} ${y1-y0+pad*2}`);
+  svg.style.setProperty('--pc',pc(G.turn));
+  let o='';
+  const t=G.sel!==null?G.market[G.sel]:null;
+  for(const k in cand){const {q,r}=cand[k];const [cx,cy]=center(q,r);const ok=legal(k,q,r,t);
+    o+=`<g data-spot="${k}" ${ok?'':'data-bad="1"'}><polygon points="${hexPts(cx,cy,SZ-2)}" class="spot ${ok?'ok':'bad'}"/></g>`;}
+  for(const k in G.tiles){const tl=G.tiles[k];const [cx,cy]=center(tl.q,tl.r);
+    o+=`<g data-tile="${k}"><polygon points="${hexPts(cx,cy,SZ)}" fill="${tileFill(tl.t)}"/>${art(tl.t,cx,cy,SZ,tl.q,tl.r)}<polygon points="${hexPts(cx,cy,SZ)}" class="hexline"/>${tl.flag===0||tl.flag===1?flagSvg(cx,cy,tl.flag):''}</g>`;}
+  // ghost preview
+  const gk=pending||hover;
+  if(G.phase==='place'&&gk&&cand[gk]&&legal(gk,cand[gk].q,cand[gk].r,t)){const {q,r}=cand[gk];const [cx,cy]=center(q,r);
+    o+=`<g class="ghost"><polygon points="${hexPts(cx,cy,SZ)}" fill="${tileFill(t)}"/>${art(t,cx,cy,SZ,q,r)}<polygon points="${hexPts(cx,cy,SZ)}" class="lastline"/></g>`;}
+  // patch outline
+  let pk=null;
+  if(hover&&G.tiles[hover])pk=hover;else if(G.phase==='flag')pk=G.last;
+  if(pk){const p=patchOf(G.tiles,pk);p.keys.forEach(k=>{const tl=G.tiles[k];const [cx,cy]=center(tl.q,tl.r);o+=`<polygon points="${hexPts(cx,cy,SZ-2)}" class="patchline" pointer-events="none"/>`;});}
+  if(G.last&&G.tiles[G.last]){const tl=G.tiles[G.last];const [cx,cy]=center(tl.q,tl.r);o+=`<polygon points="${hexPts(cx,cy,SZ-5)}" class="lastline" style="stroke:${pc(G.phase==='flag'?G.turn:1-G.turn)}" pointer-events="none"/>`;}
+  svg.innerHTML=o;
+}
+
+function patchText(p){
+  const nm=G.names;const parts=[];
+  if(p.f[0])parts.push(`${nm[0]} ${p.f[0]} flag${p.f[0]>1?'s':''}`);
+  if(p.f[1])parts.push(`${nm[1]} ${p.f[1]} flag${p.f[1]>1?'s':''}`);
+  let lead='Nobody has claimed it yet.';
+  if(p.pts[0]&&p.pts[1])lead=`Tied, so each gets ${fmt(p.pts[0])}.`;
+  else if(p.pts[0])lead=`${nm[0]} earns ${p.size}.`;else if(p.pts[1])lead=`${nm[1]} earns ${p.size}.`;
+  return `<div><b>${TYPES[p.t]}</b> · ${p.size} hex${p.size>1?'es':''}${parts.length?' · '+parts.join(', '):''}</div><div class="tip">${lead}</div>`;
+}
+
+function renderSide(){
+  const me=G.turn,nm=G.names,tot=totals(patches(G.tiles));
+  document.documentElement.style.setProperty('--pc',pc(me));
+  $('root').style.setProperty('--pc',pc(me));
+  $('turncount').textContent=G.phase==='over'?'Game over':`Turn ${Math.min(G.placed+1,G.total)} of ${G.total}`;
+  $('scores').innerHTML=[0,1].map(p=>`<div class="pl ${p===me&&G.phase!=='over'?'active':''}" style="--pc:${pc(p)}"><div class="nm"><i class="dot"></i><span>${esc(nm[p])}</span></div><div class="sc">${fmt(tot[p])}</div><div class="fl" title="${G.flags[p]} flags left">${Array.from({length:6},(_,i)=>flagIcon(p,i>=G.flags[p])).join('')}</div></div>`).join('');
+  const who=`<b>${esc(nm[me])}</b>`;
+  let st='',tip='';
+  if(G.phase==='pick'){st=`${who}, pick a tile from the market.`;tip='Each tile is one kind of land. Think about which patch you want to grow, or which one to keep away from your opponent.';}
+  else if(G.phase==='place'){st=`${who}, place your ${TYPES[G.market[G.sel]].toLowerCase()}.`;tip='The glowing spots are where it can go. Point at a spot to see how the score would change, then click it to place the tile. You can still switch to a different market tile.';}
+  else if(G.phase==='flag'){st=`${who}, plant a flag here?`;tip='A flag claims the whole outlined patch. You only get 6, so save them for patches that are big or likely to grow.';}
+  else st='Game over.';
+  $('status').innerHTML=st;$('tip').textContent=tip;$('tip').hidden=!G.tips||!tip;
+
+  const mk=$('market');
+  mk.innerHTML=G.market.length?G.market.map((t,i)=>`<button type="button" class="mk ${G.sel===i?'sel':''}" data-i="${i}" ${G.phase==='flag'||G.phase==='over'?'disabled':''} aria-pressed="${G.sel===i}">${miniHex(t)}<small>${TYPES[t]}</small></button>`).join(''):'<div class="empty">The market is empty.</div>';
+
+  let pv='',act='';
+  const others=nm[1-me];
+  if(G.phase==='place'){
+    const k=pending||hover,cand=candidates();
+    if(k&&cand[k]){const {q,r}=cand[k],t=G.market[G.sel];
+      if(!legal(k,q,r,t))pv=`<div class="tip">Friendly mode: this spot would join a claimed patch to another patch.</div>`;
+      else{const d=simulate(k,q,r,t,false);pv=`<div class="row"><span>Placing here</span><span>${esc(nm[me])} ${fd(d[me])} · ${esc(others)} ${fd(d[1-me])}</span></div>`;
+        if(G.flags[me]>0){const d2=simulate(k,q,r,t,true);pv+=`<div class="row"><span>Plus a flag</span><span>${esc(nm[me])} ${fd(d2[me])} · ${esc(others)} ${fd(d2[1-me])}</span></div>`;}
+        if(pending)act=`<button type="button" class="b primary" data-act="place">Place here</button>`;}
+    }else if(hover&&G.tiles[hover])pv=patchText(patchOf(G.tiles,hover));
+    else pv='<div class="tip">Point at a glowing spot to preview it.</div>';
+  }else if(G.phase==='flag'){
+    const p=patchOf(G.tiles,G.last);
+    const tiles=Object.assign({},G.tiles);tiles[G.last]=Object.assign({},tiles[G.last],{flag:me});
+    const a=totals(patches(tiles)),b=totals(patches(G.tiles));
+    pv=`<div>This ${TYPES[p.t].toLowerCase()} patch has ${p.size} hex${p.size>1?'es':''}.</div><div class="row"><span>With your flag</span><span>${esc(nm[me])} ${fd(a[me]-b[me])} · ${esc(others)} ${fd(a[1-me]-b[1-me])}</span></div>`;
+    act=`<button type="button" class="b primary" data-act="plant">Plant flag (${G.flags[me]} left)</button><button type="button" class="b" data-act="skip">Save it</button>`;
+  }else if(G.phase==='pick'){
+    pv=hover&&G.tiles[hover]?patchText(patchOf(G.tiles,hover)):'<div class="tip">Point at any tile on the board to see its patch.</div>';
+  }
+  $('preview').innerHTML=pv;$('actions').innerHTML=act;$('actions').hidden=!act;
+  $('undo').disabled=!hist.length;
+  $('tipsbtn').textContent=G.tips?'Hide tips':'Show tips';
+}
+
+function renderEnd(){
+  if(G.phase!=='over'){$('endov').hidden=true;return;}
+  const list=patches(G.tiles),tot=totals(list),nm=G.names;
+  const head=tot[0]===tot[1]?'A tie! Share the countryside.':`${esc(nm[tot[0]>tot[1]?0:1])} wins!`;
+  const top=list.filter(p=>p.pts[0]+p.pts[1]>0).sort((a,b)=>b.size-a.size).slice(0,6);
+  $('endcard').innerHTML=`<h2>${head}</h2><div class="final">${[0,1].map(p=>`<div class="pl" style="--pc:${pc(p)}"><div class="nm"><i class="dot"></i><span>${esc(nm[p])}</span></div><div class="sc">${fmt(tot[p])}</div></div>`).join('')}</div>
+  <div class="label">Biggest claimed patches</div><div class="plist">${top.length?top.map(p=>`<div><span>${TYPES[p.t]} · ${p.size}</span><span style="color:${p.pts[0]&&p.pts[1]?'var(--muted)':pc(p.pts[0]?0:1)}">${p.pts[0]&&p.pts[1]?'Split':esc(nm[p.pts[0]?0:1])}</span></div>`).join(''):'<div>No patches were claimed.</div>'}</div>
+  <div class="btns"><button type="button" class="b" data-act="look">Look at the board</button><button type="button" class="b primary" data-act="again" style="--pc:var(--p0)">Play again</button></div>`;
+  $('endov').hidden=false;
+}
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+
+function render(){if(!G)return;renderBoard();renderSide();renderEnd();save();}
+function save(){try{localStorage.setItem('hedgerow',JSON.stringify({G,hist:hist.slice(-30)}));}catch(e){}}
+
+/* ---------- events ---------- */
+svg.addEventListener('pointermove',e=>{
+  const g=e.target.closest('[data-spot],[data-tile]');const k=g?(g.dataset.spot||g.dataset.tile):null;
+  if(e.pointerType!=='mouse')return;
+  if(k!==hover){hover=k;renderBoard();renderSide();}
+});
+svg.addEventListener('pointerleave',()=>{if(hover){hover=null;renderBoard();renderSide();}});
+svg.addEventListener('click',e=>{
+  const g=e.target.closest('[data-spot],[data-tile]');if(!g)return;
+  if(g.dataset.tile){if(G.phase==='flag'&&g.dataset.tile===G.last){plant();return;}
+    if(e.pointerType!=='mouse'){hover=hover===g.dataset.tile?null:g.dataset.tile;renderBoard();renderSide();}return;}
+  if(G.phase!=='place'||g.dataset.bad)return;
+  const k=g.dataset.spot;
+  if(e.pointerType==='mouse'||pending===k)place(k);else{pending=k;renderBoard();renderSide();}
+});
+$('market').addEventListener('click',e=>{const b=e.target.closest('[data-i]');if(b&&!b.disabled)pick(+b.dataset.i);});
+document.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(!b)return;const a=b.dataset.act;
+  if(a==='plant')plant();else if(a==='skip')skip();else if(a==='place'&&pending)place(pending);
+  else if(a==='look')$('endov').hidden=true;else if(a==='again'){G=newGame(G.names,G.friendly,G.tips);hist=[];render();}});
+$('undo').addEventListener('click',undo);
+$('tipsbtn').addEventListener('click',()=>{G.tips=!G.tips;render();});
+$('newbtn').addEventListener('click',()=>{$('p0name').value=G.names[0];$('p1name').value=G.names[1];$('friendly').checked=G.friendly;$('setup').hidden=false;});
+$('setupform').addEventListener('submit',e=>{e.preventDefault();
+  const n=[$('p0name').value.trim()||'Player 1',$('p1name').value.trim()||'Player 2'];
+  G=newGame(n,$('friendly').checked,G?G.tips:true);hist=[];$('setup').hidden=true;$('endov').hidden=true;render();});
+
+function start(data){
+  if(data&&data.G){G=data.G;hist=data.hist||[];render();return;}
+  try{const s=JSON.parse(localStorage.getItem('hedgerow')||'null');if(s&&s.G&&s.G.phase!=='over'&&s.G.placed>0){G=s.G;hist=s.hist||[];render();return;}}catch(e){}
+  G=newGame(['Player 1','Player 2'],false,true);render();$('setup').hidden=false;
+}
+window.claude?.hot?.snapshot?.(()=>({G,hist}));
+window.claude?.hot?.ready?window.claude.hot.ready(start):start(window.claude?.hot?.data??{});
+})();
+</script>
+</html>
